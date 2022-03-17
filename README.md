@@ -1,14 +1,10 @@
-# Grafana Panel Plugin Template
+## This Topology Plugin is desgin for project Kindling?
+This is a topology component based on ANTV developed specifically for the Kindling project. Prometheus data is queried using modified EBPF probes, so this topology is not a generic plugin。
+If you want to use [Kindling](https://github.com/Kindling-project/kindling)
 
-[![Build](https://github.com/grafana/grafana-starter-panel/workflows/CI/badge.svg)](https://github.com/grafana/grafana-starter-panel/actions?query=workflow%3A%22CI%22)
 
-This template is a starting point for building Grafana Panel Plugins in Grafana 7.0+
-
-## What is Grafana Panel Plugin?
-
-Panels are the building blocks of Grafana. They allow you to visualize data in different ways. While Grafana has several types of panels already built-in, you can also build your own panel, to add support for other visualizations.
-
-For more information about panels, refer to the documentation on [Panels](https://grafana.com/docs/grafana/latest/features/panels/panels/)
+After the integration plugin, configure the corresponding Prometheus data source and you will see the plugin as shown
+![img](https://raw.githubusercontent.com/thousandxu/zipImage/main/topo-plugin/topo.png)
 
 ## Getting started
 

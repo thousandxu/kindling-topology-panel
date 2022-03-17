@@ -25,6 +25,9 @@ artifacts/
 work/
 ci/
 e2e-results/
+API key.txt
+yiqianxu-topo-plugin/
+yiqianxu-topo-plugin.zip
 
 # Editors
 .idea
