@@ -5,8 +5,8 @@ import './topology/node';
 import './topology/edge';
 import { formatTime, formatCount, formatKMBT, formatPercent, nodeTooltip } from './topology/tooltip';
 import TopoLegend from './topology/legend';
-import { metricList, directionOptions, viewRadioOptions, showServiceOptions, 
-  NodeDataProps, EdgeDataProps, nsRelationHandle, detailRelationHandle, detailNodesHandle, detailEdgesHandle } from './topology/services'; 
+import { metricList, directionOptions, viewRadioOptions, showServiceOptions, NodeDataProps, EdgeDataProps, 
+  transformData, nsRelationHandle, detailRelationHandle, detailNodesHandle, detailEdgesHandle } from './topology/services'; 
 import { PanelProps } from '@grafana/data';
 import { SimpleOptions } from 'types';
 import { css, cx } from 'emotion';
@@ -38,8 +38,8 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
   const [volumes, setVolumes] = useState<VolumeProps>({maxSentVolume: 0, maxReceiveVolume: 0, minSentVolume: 0, minReceiveVolume: 0});
   const [nodeTypesList, setNodeTypesList] = useState<any[]>([]);
 
-  // console.log(options, namespace, workload, width, height);
-  // console.log(data);
+  console.log(options, namespace, workload, width, height);
+  console.log(data);
 
   // 当勾选View Service Call时，显示service的调用边，两个节点之间存在多条调用关系，使用弧线绘制对应的调用关系
   const serviceLineUpdate = (dir = direction) => {
@@ -264,15 +264,14 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
     let result: any[] = [];
     if (workload.split(',').length > 1) {
       // 当workload为all的时候，筛选对应namespace下所有workload的调用关系
-      result = _.filter(topoData, (item: any) => item.fields[1].labels.dst_namespace === namespace || item.fields[1].labels.src_namespace === namespace);
+      result = _.filter(topoData, (item: any) => item.dst_namespace === namespace || item.src_namespace === namespace);
       // console.log('workload Topology', result);
     } else {
       // 具体namespace和workload下的所有调用数据
-      result = _.filter(topoData, (item: any) => (item.fields[1].labels.dst_namespace === namespace && item.fields[1].labels.dst_workload_name === workload) || (item.fields[1].labels.src_namespace === namespace && item.fields[1].labels.src_workload_name === workload));
+      result = _.filter(topoData, (item: any) => (item.dst_namespace === namespace && item.dst_workload_name === workload) || (item.src_namespace === namespace && item.src_workload_name === workload));
       // console.log('pod Topology', result);
     }
-    _.forEach(result, item => {
-      let tdata: any = item.fields[1].labels;
+    _.forEach(result, tdata => {
       let { node: targetNode, target, service } = detailRelationHandle(nodes, edges, namespace, tdata, 'dst', showPod, serviceLine);
       let { node: sourceNode, source } = detailRelationHandle(nodes, edges, namespace, tdata, 'src', showPod, serviceLine);
       sourceNode && nodes.push(sourceNode);
@@ -315,12 +314,12 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
   const initData = () => {
     // 处理grafana查询数据生成对应的拓扑调用数据结构
     let nodes: any[] = [], edges: any[] = [];
-    topoData = _.filter(data.series, (item: any) => item.refId === 'A');
-    let edgeTimeData: any = _.filter(data.series, (item: any) => item.refId === 'I');
-    let edgeSendVolumeData: any = _.filter(data.series, (item: any) => item.refId === 'B');
-    let edgeReceiveVolumeData: any = _.filter(data.series, (item: any) => item.refId === 'C');
-    let edgeRetransmitData: any = _.filter(data.series, (item: any) => item.refId === 'J');
-    let edgeRTTData: any = _.filter(data.series, (item: any) => item.refId === 'K');
+    topoData = transformData(_.filter(data.series, (item: any) => item.refId === 'A'));
+    let edgeTimeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'I'));
+    let edgeSendVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'B'));
+    let edgeReceiveVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'C'));
+    let edgeRetransmitData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'J'));
+    let edgeRTTData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'K'));
     edgeData = {
       edgeCallData: topoData,
       edgeTimeData,
@@ -330,11 +329,11 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
       edgeRTTData
     };
     
-    let nodeCallsData: any = _.filter(data.series, (item: any) => item.refId === 'D'); // 次数调用增长
-    let nodeTimeData: any = _.filter(data.series, (item: any) => item.refId === 'E');
-    let nodeErrorRateData: any = _.filter(data.series, (item: any) => item.refId === 'F');
-    let nodeSendVolumeData: any = _.filter(data.series, (item: any) => item.refId === 'G');
-    let nodeReceiveVolumeData: any = _.filter(data.series, (item: any) => item.refId === 'H');
+    let nodeCallsData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'D'));
+    let nodeTimeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'E'));
+    let nodeErrorRateData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'F'));
+    let nodeSendVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'G'));
+    let nodeReceiveVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'H'));
     nodeData = {
       nodeCallsData,
       nodeTimeData,
@@ -342,8 +341,8 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
       nodeSendVolumeData,
       nodeReceiveVolumeData
     };
-    // console.log('edgeData', edgeData);
-    // console.log('nodeData', nodeData);
+    console.log('edgeData', edgeData);
+    console.log('nodeData', nodeData);
     // 当namespace为all的时候，只绘制对应namespace的调用关系
     if (namespace.indexOf(',') > -1) {
       let result: any = nsRelationHandle(topoData, nodeData, edgeData);
