@@ -147,10 +147,10 @@ G6.registerNode('custom-node', {
         if (node.showNamespace) {
             group.addShape('rect', {
                 attrs: {
-                    x: -ImgW * 1.5 / 2,
+                    x: -ImgW * 2 / 2,
                     y: ImgH / 2 + 19,
                     radius: 5,
-                    width: ImgW * 1.5,
+                    width: ImgW * 2,
                     height: 10,
                     class: 'node_ns_rect',
                     fill: '#F3FF69',
