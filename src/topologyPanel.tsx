@@ -94,7 +94,10 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
       }
     });
   }
-  // 根据当前指标选择更新边的样式
+  /**
+   * update edge style based on the current metric
+   * 根据当前指标选择更新边的样式
+   */
   const updateLinesAndNodes = (metric = lineMetric, serviceLine = showService) => {
     const nodes = SGraph.getNodes();
     const edges = SGraph.getEdges();
@@ -194,7 +197,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
       });
     }
   }
-  // 绘制拓扑图
+  // draw topology
   const draw = (gdata: any, serviceLine = showService) => {
     const inner: any = document.getElementById('kindling_topo');
     inner.innerHTML = '';
@@ -255,13 +258,19 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
     updateLinesAndNodes(lineMetric, serviceLine);
   };
  
-  // 获取当前拓扑图下节点的类型数组，用于右侧的legend绘制
+  /**
+   * Gets an array of node types in the current topology for legend drawing on the right
+   * 获取当前拓扑图下节点的类型数组，用于右侧的legend绘制
+   */
   const getNodeTypes = (nodes: any[]) => {
     let nodeByType = _.groupBy(nodes, 'nodeType');
     let types: string[] = _.keys(nodeByType);
     return types;
   }
-  // 重新回去拓扑绘制数据时，更新对应的节点的类型数组和边上流量max、min的数值
+  /**
+   * When you go back to the topology drawing data, update the type array of the corresponding node and the value of Max and min of the flow on the side
+   * 重新回去拓扑绘制数据时，更新对应的节点的类型数组和边上流量max、min的数值
+   */
   const handleResult = (gdata: any) => {
     let nodeTypesList = getNodeTypes(gdata.nodes);
     setNodeTypesList(nodeTypesList);
@@ -273,9 +282,8 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
     }
     setVolumes(volumeData);
   }
-  // 初始化数据处理：生成拓扑数据，获取调用关系流量最大值
+  // Initial data processing: Generates topology data
   const initData = () => {
-    // 处理grafana查询数据生成对应的拓扑调用数据结构
     let nodes: any[] = [], edges: any[] = [];
     topoData = transformData(_.filter(data.series, (item: any) => item.refId === 'A'));
     let edgeTimeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'I'));
@@ -304,7 +312,6 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
     };
     // console.log('edgeData', edgeData);
     // console.log('nodeData', nodeData);
-    // 当namespace为all的时候，只绘制对应namespace的调用关系
     if (namespace.indexOf(',') > -1) {
       let result: any = nsRelationHandle(topoData, nodeData, edgeData);
       nodes = [].concat(result.nodes);
@@ -362,7 +369,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
 	// eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, namespace]);
 
-  // 切换线段指标时，相应的线段样式更新
+  // When the segment indicator is switched, the corresponding segment style is updated
   const lineMetricChange = (opt: any) => {
     setLineMetric(opt.value);
     updateLinesAndNodes(opt.value);
@@ -385,7 +392,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
       setFirstChangeDir(true);
     }
   }
-  // 是否显示调用关系上的service调用
+  // Whether to display service calls on invocation relationships
   const changeShowService = () => {
     let show = !showService ? true : false;
     setShowService(show);
@@ -398,7 +405,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
     setGraphData(gdata);
     handleResult(gdata);
   }
-  // 切换View Mode。workload视图下切换workload跟pod视图
+  // toggle View Mode。Switch between the workload view and pod view
   const changeView = (value: any) => {
     setView(value);
     let { nodes, edges } = workloadRelationHandle(workload, namespace, topoData, nodeData, edgeData, value === 'pod_view', showService);

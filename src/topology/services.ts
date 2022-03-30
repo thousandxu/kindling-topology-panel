@@ -27,9 +27,11 @@ export const showServiceOptions = [
 ];
 
 
-// externalTypes 当前外部调用的namespace枚举值
+// externalTypes：The namespace enumeration value of the current external call
 const externalTypes: string[] = ['NOT_FOUND_EXTERNAL', 'NOT_FOUND_INTERNAL', 'EXTERNAL', 'external', 'default'];
+// workloadTypes
 const workloadTypes: string[] = ['workload', 'deployment', 'daemonset', 'statefulset', 'node'];
+
 export interface TopologyProps {
     nodes: NodeProps[];
     edges: EdgeProps[];
@@ -75,7 +77,7 @@ export interface EdgeDataProps {
     edgeRTTData: any[];
 }
 
-// 根据配置中的layout字段，构建对应的拓扑布局
+// Create a topology layout based on the Layout field in the configuration
 export const buildLayout = (type: string, direction: string) => {
     const layout: any = {
         type: 'dagre',
@@ -102,8 +104,10 @@ export const buildLayout = (type: string, direction: string) => {
     return layout;
 }
 
-// Grafana data format conversion to facilitate subsequent debugging
-// Grafana的数据格式转化提取，方便后续调试
+/**
+ * Grafana data format conversion to facilitate subsequent debugging
+ * Grafana的数据格式转化提取，方便后续调试
+ */
 export const transformData = (data: any[]) => {
     let result: any[] = [];
     _.forEach(data, item => {
@@ -115,6 +119,7 @@ export const transformData = (data: any[]) => {
     });
     return result;
 }
+
 // text overFlow handle
 export const nodeTextHandle = (text: string, num = 20) => {
     if (text.length > num) {
@@ -131,7 +136,7 @@ const edgeFilter = (item: any, edge: EdgeProps) => {
         return item.src_namespace === edge.source && item.dst_namespace === edge.target;
     }
 };
-// namespace 调用关系数据处理
+// namespace relational data handle
 export const nsRelationHandle = (topoData: any, nodeData: NodeDataProps, edgeData: EdgeDataProps) => {
     let nodes: NodeProps[] = [], edges: EdgeProps[] = [];
     _.forEach(topoData, tdata => {
@@ -234,7 +239,10 @@ export const nsRelationHandle = (topoData: any, nodeData: NodeDataProps, edgeDat
     return { nodes, edges };
 }
 
-// 只勾选一个namespace是workload为all或者workload为单个值的调用关系处理
+/**
+ * value data handle when select only one namespace that workload is all or workload is a single 
+ * 只勾选一个namespace是workload为all或者workload为单个值的调用关系处理
+ */
 export const workloadRelationHandle = (workload: string, namespace: string, topoData: any, nodeData: NodeDataProps, edgeData: EdgeDataProps, showPod: boolean, serviceLine: boolean) => {
     let nodes: any[] = [], edges: any[] = [];
     let result: any[] = [];
@@ -242,7 +250,7 @@ export const workloadRelationHandle = (workload: string, namespace: string, topo
         // 当workload为all的时候，筛选对应namespace下所有workload的调用关系
         result = _.filter(topoData, (item: any) => item.dst_namespace === namespace || item.src_namespace === namespace);
     } else {
-        // 具体namespace和workload下的所有调用数据
+        // filter Topology data when namespace and workload is specific
         result = _.filter(topoData, (item: any) => (item.dst_namespace === namespace && item.dst_workload_name === workload) || (item.src_namespace === namespace && item.src_workload_name === workload));
     }
     console.log('topology data', result);
@@ -268,12 +276,13 @@ export const workloadRelationHandle = (workload: string, namespace: string, topo
     return { nodes, edges };
 }
 /**
- * 构造workload下的对应节点数据和对应调用source、target
- * @param nodes 当前节点数组
- * @param namespace 当前查询的namespace
- * @param tdata 当前遍历的原始调用数据
- * @param pre dst|src 判断当前节点使用字段的前置类型
- * @param showPod 是否为单个workload下显示pod视图
+ * Construct the node data and edge data in the Workload view
+ * 构造workload视图下的对应节点数据和对应调用source、target
+ * @param nodes node list | 当前节点数组
+ * @param namespace current namespace | 当前查询的namespace
+ * @param tdata current call data | 当前遍历的调用数据
+ * @param pre dst|src   pre-type field | 判断当前节点使用字段的前置类型
+ * @param showPod pod view | 是否为单个workload下显示pod视图
  * @returns node：当前构造的节点数据、source：tdata的调用方、target：tdata的被调用方
  */
 export const detailRelationHandle = (nodes: any[], edges: any[], namespace: string, tdata: any, pre: string, showPod: boolean, showService: boolean) => {
@@ -369,9 +378,10 @@ export const detailRelationHandle = (nodes: any[], edges: any[], namespace: stri
 }
 
 /**
- * 
- * @param nodes 节点数组
- * @param nodeData 节点的指标数据（调用次数、延时、错误率、进出流量）
+ * handle node indicator data
+ * node节点数据处理（时延、调用次数、错误率、流量）
+ * @param nodes nodes list | 节点数组
+ * @param nodeData Indicator data of node | 节点的指标数据（调用次数、延时、错误率、进出流量）
  */
 export const detailNodesHandle = (nodes: any[], nodeData: any) => {
     let nodelist = _.cloneDeep(nodes);
