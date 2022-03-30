@@ -253,7 +253,7 @@ export const workloadRelationHandle = (workload: string, namespace: string, topo
         // filter Topology data when namespace and workload is specific
         result = _.filter(topoData, (item: any) => (item.dst_namespace === namespace && item.dst_workload_name === workload) || (item.src_namespace === namespace && item.src_workload_name === workload));
     }
-    console.log('topology data', result);
+    // console.log('topology data', result);
     _.forEach(result, tdata => {
         let { node: targetNode, target, service } = detailRelationHandle(nodes, edges, namespace, tdata, 'dst', showPod, serviceLine);
         let { node: sourceNode, source } = detailRelationHandle(nodes, edges, namespace, tdata, 'src', showPod, serviceLine);
