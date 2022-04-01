@@ -291,13 +291,15 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
     let edgeReceiveVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'C'));
     let edgeRetransmitData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'J'));
     let edgeRTTData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'K'));
+    let edgePackageLostData = transformData(_.filter(data.series, (item: any) => item.refId === 'F'));
     edgeData = {
       edgeCallData: topoData,
       edgeTimeData,
       edgeSendVolumeData,
       edgeReceiveVolumeData,
       edgeRetransmitData,
-      edgeRTTData
+      edgeRTTData,
+      edgePackageLostData
     };
     
     let nodeCallsData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'D'));
@@ -310,8 +312,8 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
       nodeSendVolumeData,
       nodeReceiveVolumeData
     };
-    // console.log('edgeData', edgeData);
-    // console.log('nodeData', nodeData);
+    console.log('edgeData', edgeData);
+    console.log('nodeData', nodeData);
     if (namespace.indexOf(',') > -1) {
       let result: any = nsRelationHandle(topoData, nodeData, edgeData);
       nodes = [].concat(result.nodes);
@@ -328,7 +330,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
       nodes: nodes,
       edges: edges
     }
-    // console.log(gdata);
+    console.log(gdata);
     setGraphData(gdata);
     draw(gdata);
     handleResult(gdata);
