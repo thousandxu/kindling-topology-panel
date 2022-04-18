@@ -29,7 +29,7 @@ export const buildLayout = (type: string, direction: string) => {
 
 // text overFlow handle
 export const nodeTextHandle = (text: string, num = 20) => {
-    if (text.length > num) {
+    if (text && text.length > num) {
         return text.substring(0, num) + '...';
     } else {
         return text;

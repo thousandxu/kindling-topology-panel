@@ -8,7 +8,7 @@ import TopoLegend from './topology/legend';
 import { metricList, layoutOptions, directionOptions, viewRadioOptions, showServiceOptions, NodeDataProps, EdgeDataProps, 
   transformData, getNodeTypes, nsRelationHandle, workloadRelationHandle } from './topology/services'; 
 import { buildLayout, serviceLineUpdate, updateLinesAndNodes } from './topology/topology'
-import FilterList, { IOpt } from './topology/filter';
+import FilterList, { SelectOption } from './topology/filter';
 import { PanelProps } from '@grafana/data';
 import { SimpleOptions } from 'types';
 import { css, cx } from 'emotion';
@@ -32,9 +32,9 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
   // const workload = replaceVariables('$workload');
   const styles = getStyles();
   const [namespace, setNamespace] = useState<string>('all'); 
-  const [namespaceList, setNamespaceList] = useState<IOpt[]>([]); 
+  const [namespaceList, setNamespaceList] = useState<SelectOption[]>([]); 
   const [workload, setWorkload] = useState<string>('all'); 
-  const [workloadList, setWorkloadList] = useState<IOpt[]>([]); 
+  const [workloadList, setWorkloadList] = useState<SelectOption[]>([]); 
   const [graphData, setGraphData] = useState<any>({}); 
   const [layout, setLayout] = useState<string>('dagre'); 
   const [loading, setLoading] = useState<boolean>(true); 
@@ -214,6 +214,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
       setShowCheckbox(false);
       setShowView(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [namespace, workload]);
 
   useEffect(() => {
@@ -306,7 +307,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
           </div>
         </div>
         <div className={styles.metricSelect}>
-          <span style={{ width: '180px' }}>Call Line Metric</span>
+          <span style={{ width: '170px' }}>Call Line Metric</span>
           <Select value={lineMetric} options={metricList} onChange={lineMetricChange}/>
         </div>
       </div>

@@ -1,12 +1,12 @@
 import _ from 'lodash';
-export interface IOpt {
+export interface SelectOption {
     label: string, 
     value: string,
 }
 
 class FilterList {
-    namespaceList: IOpt[];
-    workloadList: IOpt[];
+    namespaceList: SelectOption[];
+    workloadList: SelectOption[];
     workloadListByNamespace: any;
 
     constructor(data: any) {
@@ -63,6 +63,4 @@ class FilterList {
     }
 }
     
-
-
-export default FilterList
+export default FilterList;

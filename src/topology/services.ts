@@ -120,43 +120,45 @@ export const nsRelationHandle = (topoData: any, nodeData: NodeDataProps, edgeDat
     let nodes: NodeProps[] = [], edges: EdgeProps[] = [];
     _.forEach(topoData, tdata => {
         let target: string;
-        if (tdata.protocol === 'dns') {
-            target = tdata.dst_ip;
-            if (_.findIndex(nodes, {id: tdata.dst_ip}) === -1) {
+        if (tdata.src_namespace && tdata.dst_namespace) {
+            if (tdata.protocol === 'dns') {
+                target = tdata.dst_ip;
+                if (_.findIndex(nodes, {id: tdata.dst_ip}) === -1) {
+                    nodes.push({
+                        id: tdata.dst_ip,
+                        name: tdata.dst_ip,
+                        nodeType: 'dns',
+                        showNamespace: false
+                    });
+                }
+            } else {
+                target = tdata.dst_namespace;
+                if (_.findIndex(nodes, {id: tdata.dst_namespace}) === -1) {
+                    nodes.push({
+                        id: tdata.dst_namespace,
+                        name: tdata.dst_namespace,
+                        nodeType: externalTypes.indexOf(tdata.dst_namespace) > -1 ? 'external' : 'namespace',
+                        showNamespace: false
+                    });
+                }
+            }
+            if (_.findIndex(nodes, {id: tdata.src_namespace}) === -1) {
                 nodes.push({
-                    id: tdata.dst_ip,
-                    name: tdata.dst_ip,
-                    nodeType: 'dns',
+                    id: tdata.src_namespace,
+                    name: tdata.src_namespace,
+                    nodeType: externalTypes.indexOf(tdata.src_namespace) > -1 ? 'external' : 'namespace',
                     showNamespace: false
                 });
             }
-        } else {
-            target = tdata.dst_namespace;
-            if (_.findIndex(nodes, {id: tdata.dst_namespace}) === -1) {
-                nodes.push({
-                    id: tdata.dst_namespace,
-                    name: tdata.dst_namespace,
-                    nodeType: externalTypes.indexOf(tdata.dst_namespace) > -1 ? 'external' : 'namespace',
-                    showNamespace: false
+            if (_.findIndex(edges, {source: tdata.src_namespace, target: target}) === -1) {
+                let opposite: boolean = _.findIndex(edges, {source: target, target: tdata.src_namespace}) > -1 ? true : false;
+                edges.push({
+                    source: tdata.src_namespace,
+                    target: target,
+                    opposite,
+                    dnsEdge: tdata.protocol === 'dns'
                 });
             }
-        }
-        if (_.findIndex(nodes, {id: tdata.src_namespace}) === -1) {
-            nodes.push({
-                id: tdata.src_namespace,
-                name: tdata.src_namespace,
-                nodeType: externalTypes.indexOf(tdata.src_namespace) > -1 ? 'external' : 'namespace',
-                showNamespace: false
-            });
-        }
-        if (_.findIndex(edges, {source: tdata.src_namespace, target: target}) === -1) {
-            let opposite: boolean = _.findIndex(edges, {source: target, target: tdata.src_namespace}) > -1 ? true : false;
-            edges.push({
-                source: tdata.src_namespace,
-                target: target,
-                opposite,
-                dnsEdge: tdata.protocol === 'dns'
-            });
         }
     });
     nodes.forEach((node: NodeProps) => {
