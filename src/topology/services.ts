@@ -9,7 +9,7 @@ export const metricList: Array<{label: string; value: any; description?: string}
     { label: 'SRTT', value: 'rtt' },
     { label: 'Retransmit', value: 'retransmit' },
     { label: 'Package Lost', value: 'packageLost' },
-    { label: 'Connection Fail', value: 'connFail' }
+    { label: 'Connection Failure', value: 'connFail' }
 ];
 export const layoutOptions = [
     { label: 'Hierarchy Chart', value: 'dagre' },

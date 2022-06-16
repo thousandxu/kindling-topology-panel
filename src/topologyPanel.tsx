@@ -156,6 +156,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
     }
     // console.log(gdata);
     connFailTopo = _.cloneDeep(connFailResult);
+    console.log('topo', gdata);
     console.log('connFailTopo', connFailTopo);
     setGraphData(gdata);
     if (lineMetric === 'connFail') {
@@ -199,7 +200,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, r
     console.log('edgeData', edgeData);
     console.log('nodeData', nodeData);
 
-    filterOpts = new FilterList(topoData);
+    filterOpts = new FilterList(topoData, namespace);
     setNamespaceList(filterOpts.namespaceList);
     setWorkloadList(filterOpts.workloadList);
 
