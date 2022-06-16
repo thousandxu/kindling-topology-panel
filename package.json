@@ -16,6 +16,7 @@
     "@grafana/data": "latest",
     "@grafana/toolkit": "latest",
     "@grafana/ui": "latest",
+    "@types/react-dom": "^18.0.5",
     "emotion": "10.0.27"
   },
   "engines": {
