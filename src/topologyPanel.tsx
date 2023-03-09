@@ -27,6 +27,7 @@ let SGraph: any;
 let filterOpts: any;
 let topoData: any, connFailTopoData: any, nodeData: NodeDataProps, edgeData: EdgeDataProps;
 let connFailTopo: TopologyProps;
+const initActiveMetricList: MetricType[] = ['latency', 'calls', 'errorRate'];
 
 interface Props extends PanelProps<SimpleOptions> {}
 
@@ -52,7 +53,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
   const [lineMetric, setLineMetric] = useState<any>('latency');
   const [volumes, setVolumes] = useState<VolumeProps>({maxSentVolume: 0, maxReceiveVolume: 0, minSentVolume: 0, minReceiveVolume: 0});
   const [nodeTypesList, setNodeTypesList] = useState<any[]>([]);
-  const [activeMetricList, setActiveMetricList] = useState<MetricType[]>(['latency', 'calls', 'errorRate']);
+  const [activeMetricList, setActiveMetricList] = useState<MetricType[]>(initActiveMetricList);
 
   console.log(options, namespace, workload, width, height, timeRange);
   console.log(data);
@@ -175,13 +176,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
   // Initial data processing: Generates topology data
   const initData = () => {
     topoData = transformData(_.filter(data.series, (item: any) => item.refId === 'A'));
-    // connFailTopoData = transformData(_.filter(data.series, (item: any) => item.refId === 'L'));
     let edgeTimeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'I'));
-    // let edgeSendVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'B'));
-    // let edgeReceiveVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'C'));
-    // let edgeRetransmitData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'J'));
-    // let edgeRTTData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'K'));
-    // let edgePackageLostData = transformData(_.filter(data.series, (item: any) => item.refId === 'F'));
     edgeData = {
       edgeCallData: topoData,
       edgeTimeData,
@@ -192,10 +187,6 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
       edgePackageLostData: []
     };
     
-    // let nodeCallsData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'D'));
-    // let nodeTimeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'E'));
-    // let nodeSendVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'G'));
-    // let nodeReceiveVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'H'));
     nodeData = {
       nodeCallsData: [],
       nodeTimeData: [],
@@ -259,6 +250,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
   useEffect(() => {
     if (data.state === 'Done') {
       setLoading(false);
+      setActiveMetricList(initActiveMetricList);
       initData();
       initGetNodeInfo();
     }
