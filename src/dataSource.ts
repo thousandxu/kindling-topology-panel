@@ -116,7 +116,7 @@ export const metricQuery = async (metric: MetricType, namespace: string, workloa
 
 const getNodeMetricPQL = (metric: string, namespace: string, workload: string, timeRange: TimeRange) => {
     const timeScope: ScopedVars = getTimeScope(timeRange);
-    let queryPQL: string = '';
+    let queryPQL = '';
     if (namespace === 'all') {
         queryPQL = `sum (increase(${metric}[$__range])) by (namespace, workload_name, pod)`;
     } else {
@@ -154,7 +154,7 @@ export const getNodeInfo = (namespace: string, workload: string, timeRange: Time
 
 const getQueryText = (metric: string, namespace: string, workload: string, timeRange: TimeRange) => {
     const timeScope: ScopedVars = getTimeScope(timeRange);
-    let queryPQL: string = '';
+    let queryPQL = '';
     let functionName = 'increase';
     if (metric === 'kindling_tcp_srtt_microseconds') {
         functionName = 'avg_over_time';
