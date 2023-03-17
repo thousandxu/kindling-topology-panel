@@ -6,15 +6,15 @@ import './topology/edge';
 import { nodeTooltip } from './topology/tooltip';
 import TopoLegend from './topology/legend';
 import { metricList, metricDataName, layoutOptions, directionOptions, viewRadioOptions, showServiceOptions, NodeDataProps, EdgeDataProps, 
-  transformData, getNodeTypes, nsRelationHandle, connFailNSRelationHandle, workloadRelationHandle, connFailWorkloadRelationHandle, TopologyProps, topoMerge,
+  getNodeTypes, nsRelationHandle, connFailNSRelationHandle, workloadRelationHandle, connFailWorkloadRelationHandle, TopologyProps, topoMerge,
   updateNode, updateEdge } from './topology/services'; 
 import { buildLayout, serviceLineUpdate, updateLinesAndNodes } from './topology/topology'
 import FilterList, { SelectOption } from './topology/filter';
-import { PanelProps, SelectableValue } from '@grafana/data';
+import { PanelProps, SelectableValue, TimeRange } from '@grafana/data';
 import { MetricType, SimpleOptions } from 'types';
 import { css, cx } from 'emotion';
 import { stylesFactory, Select, RadioButtonGroup, Icon, Tooltip, Spinner, InlineField } from '@grafana/ui';
-import { getNodeInfo, metricQuery } from './dataSource'; 
+import { getNamespaceAndWorkload, getTopoData, getNodeInfo, metricQuery } from './dataSource'; 
 
 interface VolumeProps {
   maxSentVolume: number; 
@@ -31,22 +31,19 @@ const initActiveMetricList: MetricType[] = ['latency', 'calls', 'errorRate'];
 
 interface Props extends PanelProps<SimpleOptions> {}
 
-export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, timeRange, replaceVariables }) => {
+export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRange }) => {
   let graphRef: any = useRef();
-  // const theme = useTheme();
-  // const namespace = replaceVariables('$namespace');
-  // const workload = replaceVariables('$workload');
   const styles = getStyles();
-  const [namespace, setNamespace] = useState<string>('all'); 
+  const [namespace, setNamespace] = useState<string>(''); 
   const [namespaceList, setNamespaceList] = useState<SelectOption[]>([]); 
   const [workload, setWorkload] = useState<string>('all'); 
   const [workloadList, setWorkloadList] = useState<SelectOption[]>([]); 
   const [graphData, setGraphData] = useState<any>({}); 
   const [layout, setLayout] = useState<string>('dagre'); 
-  const [loading, setLoading] = useState<boolean>(true); 
-  const [showCheckbox, setShowCheckbox] = useState<boolean>(namespace === 'all');
-  const [showService, setShowService] = useState<boolean>(false);
-  const [showView, setShowView] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false); 
+  const [showCheckbox, setShowCheckbox] = useState<boolean>(namespace === 'all'); // 是否显示show services的切换选项
+  const [showService, setShowService] = useState<boolean>(false); // show services
+  const [showView, setShowView] = useState<boolean>(false); // 单个workload拓扑视图下  workload与pod切换的选项
   const [firstChangeDir, setFirstChangeDir] = useState<boolean>(false);
   const [direction, setDirection] = useState<string>('LR');
   const [view, setView] = useState<string>('workload_view');
@@ -55,9 +52,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
   const [nodeTypesList, setNodeTypesList] = useState<any[]>([]);
   const [activeMetricList, setActiveMetricList] = useState<MetricType[]>(initActiveMetricList);
 
-  console.log(options, namespace, workload, width, height, timeRange);
-  console.log(data);
-
+  // console.log(options, namespace, workload, width, height, timeRange);
   // draw topology
   const draw = (gdata: any, metric = lineMetric, serviceLine = showService) => {
     const inner: any = document.getElementById('kindling_topo');
@@ -128,9 +123,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
    * When you go back to the topology drawing data, update the type array of the corresponding node and the value of Max and min of the flow on the side
    * 重新回去拓扑绘制数据时，更新对应的节点的类型数组和边上流量max、min的数值
    */
-  const handleResult = (gdata: any) => {
-    let nodeTypesList = getNodeTypes(gdata.nodes);
-    setNodeTypesList(nodeTypesList);
+  const calculateVolume = (gdata: any) => {
     let volumeData: VolumeProps = {
       maxSentVolume: _.max(_.map(gdata.edges, 'sentVolume')),
       maxReceiveVolume: _.max(_.map(gdata.edges, 'receiveVolume')),
@@ -139,22 +132,22 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
     }
     setVolumes(volumeData);
   }
-  const buildtopoData = () => {
+  const buildtopoData = (namespaceV: string, workloadV: string, metric: MetricType) => {
     let nodes: any[] = [], edges: any[] = [];
     let connFailResult: TopologyProps = {
       nodes: [],
       edges: []
     };
-    if (namespace === 'all') {
+    if (namespaceV === 'all') {
       let result: any = nsRelationHandle(topoData, nodeData, edgeData);
       connFailResult = connFailNSRelationHandle(connFailTopoData);
       nodes = [].concat(result.nodes);
       edges = [].concat(result.edges);
     } else {
-      let showPod = workload !== 'all';
+      let showPod = workloadV !== 'all';
       setView(showPod ? 'pod_view' : 'workload_view');
-      let result: any = workloadRelationHandle(workload === 'all' ? _.map(workloadList, 'value').toString() : workload, namespace, topoData, nodeData, edgeData, showPod, showService);
-      connFailResult = connFailWorkloadRelationHandle(workload === 'all' ? _.map(workloadList, 'value').toString() : workload, namespace, connFailTopoData, showPod, showService);
+      let result: any = workloadRelationHandle(workloadV, namespaceV, topoData, nodeData, edgeData, showPod, showService);
+      connFailResult = connFailWorkloadRelationHandle(workloadV, namespaceV, connFailTopoData, showPod, showService);
       nodes = [].concat(result.nodes);
       edges = [].concat(result.edges);
     }
@@ -169,39 +162,14 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
       const data = topoMerge(gdata, connFailTopo);
       draw(data);
     } else {
-      draw(gdata);
+      draw(gdata, metric);
     }
-    handleResult(gdata);
+    let nodeTypesList = getNodeTypes(gdata.nodes);
+    setNodeTypesList(nodeTypesList);
   }
-  // Initial data processing: Generates topology data
-  const initData = () => {
-    topoData = transformData(_.filter(data.series, (item: any) => item.refId === 'A'));
-    let edgeTimeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'I'));
-    edgeData = {
-      edgeCallData: topoData,
-      edgeTimeData,
-      edgeSendVolumeData: [],
-      edgeReceiveVolumeData: [],
-      edgeRetransmitData: [],
-      edgeRTTData: [],
-      edgePackageLostData: []
-    };
-    
-    nodeData = {
-      nodeCallsData: [],
-      nodeTimeData: [],
-      nodeSendVolumeData: [],
-      nodeReceiveVolumeData: []
-    };
-
-    filterOpts = new FilterList(topoData, namespace);
-    setNamespaceList(filterOpts.namespaceList);
-    setWorkloadList(filterOpts.workloadList);
-
-    buildtopoData();
-  }
-  const initGetNodeInfo = () => {
-    getNodeInfo(timeRange).then(allRes => {
+  // 获取节点上的时延、请求次数、错误率、接受/发出流量的数据
+  const getNodeInfoData = (namespaceV: string, workloadV: string, metric: MetricType) => {
+    getNodeInfo(namespaceV, workloadV, timeRange).then(allRes => {
       nodeData = {
         nodeCallsData: allRes[0],
         nodeTimeData: allRes[1],
@@ -209,21 +177,51 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
         nodeReceiveVolumeData: allRes[3]
       };
       updateNode(graphData, nodeData, SGraph, namespace === 'all');
-      updateLinesAndNodes(SGraph, options, volumes, lineMetric, showService);
+      updateLinesAndNodes(SGraph, options, volumes, metric, showService);
+    });
+  }
+  // Initial data processing: query topology data
+  const queryTopoData = (namespaceV: string, workloadV: string, timeRange: TimeRange, metric = lineMetric) => {
+    setLoading(true);
+    console.log(namespaceV, workloadV);
+    getTopoData(namespaceV, workloadV, timeRange).then(res => {
+      setLoading(false);
+      topoData = res[0];
+      let edgeTimeData: any = res[1];
+      edgeData = {
+        edgeCallData: topoData,
+        edgeTimeData,
+        edgeSendVolumeData: [],
+        edgeReceiveVolumeData: [],
+        edgeRetransmitData: [],
+        edgeRTTData: [],
+        edgePackageLostData: []
+      };
+      
+      nodeData = {
+        nodeCallsData: [],
+        nodeTimeData: [],
+        nodeSendVolumeData: [],
+        nodeReceiveVolumeData: []
+      };
+  
+      buildtopoData(namespaceV, workloadV, metric);
+      getNodeInfoData(namespaceV, workloadV, metric);
+    });
+  }
+  // 初始化获取Namespace和workload下拉列表的数据，默认请求第一个namespace的拓扑相关数据
+  const init = () => {
+    getNamespaceAndWorkload(timeRange).then((res: any) => {
+      let seriesData = res.data.data;
+      filterOpts = new FilterList(seriesData, namespace);
+
+      setNamespaceList(filterOpts.namespaceList);
+      let namespaceValue = filterOpts.namespaceList[0].value;
+      setNamespace(namespaceValue);
+      namespaceChange({value: namespaceValue});
     });
   }
 
-  useEffect(() => {
-    if (SGraph) {
-      if (lineMetric === 'connFail') {
-        const data = topoMerge(graphData, connFailTopo);
-        draw(data);
-      } else {
-        draw(graphData);
-      }  
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout]);
   useEffect(() => {
     if (SGraph) {
       updateLinesAndNodes(SGraph, options, volumes, lineMetric, showService);
@@ -232,7 +230,6 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
   }, [volumes, lineMetric]);
 
   useEffect(() => {
-    buildtopoData();
     if (namespace !== 'all') {
       setShowCheckbox(true);
       if (workload !== 'all') {
@@ -246,34 +243,53 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [namespace, workload]);
-
+  
+  // 插件根据时间重新请求数据初始化 
   useEffect(() => {
-    if (data.state === 'Done') {
-      setLoading(false);
-      setActiveMetricList(initActiveMetricList);
-      initData();
-      initGetNodeInfo();
+    init();
+	  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange]);
+
+  // 改变拓扑布局方式，重新绘制拓扑图
+  useEffect(() => {
+    if (SGraph) {
+      if (lineMetric === 'connFail') {
+        const data = topoMerge(graphData, connFailTopo);
+        draw(data);
+      } else {
+        draw(graphData);
+      }  
     }
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout]);
 
   const namespaceChange = (opt: any) => {
     setNamespace(opt.value);
     filterOpts.changeNamespace(opt.value);
     setWorkloadList(filterOpts.workloadList);
     setWorkload('all');
+    setActiveMetricList(initActiveMetricList);
+    new Promise((resolve) => {
+      setLineMetric(() => {
+        resolve('latency');
+        return 'latency';
+      });
+    }).then(res => {
+      // console.log('我是setLineMetric的回调', res);
+      queryTopoData(opt.value, 'all', timeRange, res);
+    });
   }
   const workloadChange = (opt: any) => {
     setWorkload(opt.value);
+    buildtopoData(namespace, opt.value, lineMetric);
   }
   // When the segment indicator is switched, the corresponding segment style is updated
   const lineMetricChange = async (opt: SelectableValue<MetricType>) => {
     let metric: MetricType = opt.value!;
-    setLineMetric(metric);
     if (activeMetricList.indexOf(metric) === -1) {
       setLoading(true);
       setActiveMetricList([...activeMetricList, metric]);
-      let metricData = await metricQuery(metric, timeRange);
+      let metricData = await metricQuery(metric, namespace, workload, timeRange);
       setLoading(false);
       if (metric === 'connFail') {
         connFailTopoData = metricData;
@@ -284,7 +300,9 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
         edgeData[metricDataName[metric]] = metricData;
         updateEdge(graphData, metric, metricData, SGraph, namespace === 'all', showService);
         // updateLinesAndNodes(SGraph, options, volumes, metric, showService);
-        handleResult(graphData);
+        if (metric === 'sentVolume' || metric === 'receiveVolume') {
+          calculateVolume(graphData);
+        }
       }
     } else {
       if (metric === 'connFail') {
@@ -293,30 +311,16 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
       } else {
         if (lineMetric === 'connFail') {
           draw(graphData, metric);
-        } else {
-          // updateLinesAndNodes(SGraph, options, volumes, metric, showService);
         }
       }
-    }
-    // console.log('edgeData', edgeData);
-    // updateLinesAndNodes(SGraph, options, volumes, metric, showService);
-    // if (opt.value === 'connFail') {
-    //   const data = topoMerge(graphData, connFailTopo);
-    //   draw(data, opt.value);
-    // } else {
-    //   if (lineMetric === 'connFail') {
-    //     draw(graphData, opt.value);
-    //   } else {
-        // updateLinesAndNodes(SGraph, options, volumes, metric, showService);
-    //   }
-    // }    
+    } 
+    setLineMetric(metric);
   }
   const changeLayout = (opt: any) => {
     if (opt.value === layout) {
       return;
     }
     setLayout(opt.value);
-    // draw(graphData);
   } 
   const changeDirection = (value: any) => {
     setDirection(value);
@@ -333,26 +337,26 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
   const changeShowService = () => {
     let show = !showService ? true : false;
     setShowService(show);
-    let { nodes, edges } = workloadRelationHandle(workload === 'all' ? _.map(workloadList, 'value').toString() : workload, namespace, topoData, nodeData, edgeData, view === 'pod_view', show);
+    let { nodes, edges } = workloadRelationHandle(workload, namespace, topoData, nodeData, edgeData, view === 'pod_view', show);
     let gdata = {
       nodes: nodes,
       edges: edges
     }
     draw(gdata, lineMetric, show);
     setGraphData(gdata);
-    handleResult(gdata);
+    calculateVolume(gdata);
   }
   // toggle View Mode。Switch between the workload view and pod view
   const changeView = (value: any) => {
     setView(value);
-    let { nodes, edges } = workloadRelationHandle(workload === 'all' ? _.map(workloadList, 'value').toString() : workload, namespace, topoData, nodeData, edgeData, value === 'pod_view', showService);
+    let { nodes, edges } = workloadRelationHandle(workload, namespace, topoData, nodeData, edgeData, value === 'pod_view', showService);
     let gdata = {
       nodes: nodes,
       edges: edges
     }
     draw(gdata);
     setGraphData(gdata);
-    handleResult(gdata);
+    calculateVolume(gdata);
   }
 
   return (

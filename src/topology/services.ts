@@ -118,6 +118,7 @@ export const transformData = (data: any[]) => {
 export const getNodeTypes = (nodes: any[]) => {
     let nodeByType = _.groupBy(nodes, 'nodeType');
     let types: string[] = _.keys(nodeByType);
+    _.remove(types, opt => opt === 'undefined');
     return types;
 }
 
@@ -209,7 +210,7 @@ export const nsRelationHandle = (topoData: any, nodeData: NodeDataProps, edgeDat
             });
         }
     });
-    console.log('nsRelationHandle', nodes);
+
     _.remove(edges, edge => edge.source === edge.target);
     edges.forEach((edge: EdgeProps) => {
         let callsList = _.filter(topoData, item => edgeFilter(item, edge));
@@ -298,7 +299,7 @@ export const connFailNSRelationHandle = (topoData: any) => {
 export const connFailWorkloadRelationHandle = (workload: string, namespace: string, topoData: any, showPod: boolean, serviceLine: boolean) => {
     let nodes: any[] = [], edges: any[] = [];
     let result: any[] = [];
-    if (workload.split(',').length > 1) {
+    if (workload === 'all') {
         // 当workload为all的时候，筛选对应namespace下所有workload的调用关系
         result = _.filter(topoData, (item: any) => item.dst_namespace === namespace || item.src_namespace === namespace);
     } else {
@@ -360,8 +361,8 @@ export const topoMerge = (topo: TopologyProps, connTopo: TopologyProps) => {
  */
 export const workloadRelationHandle = (workload: string, namespace: string, topoData: any, nodeData: NodeDataProps, edgeData: EdgeDataProps, showPod: boolean, serviceLine: boolean) => {
     let nodes: any[] = [], edges: any[] = [];
-    let result: any[] = [];
-    if (workload.split(',').length > 1) {
+    let result: any[] = topoData;
+    if (workload === 'all') {
         // 当workload为all的时候，筛选对应namespace下所有workload的调用关系
         result = _.filter(topoData, (item: any) => item.dst_namespace === namespace || item.src_namespace === namespace);
     } else {
@@ -372,18 +373,21 @@ export const workloadRelationHandle = (workload: string, namespace: string, topo
     _.forEach(result, tdata => {
         let { node: targetNode, target, service } = detailRelationHandle(nodes, edges, namespace, tdata, 'dst', showPod, serviceLine);
         let { node: sourceNode, source } = detailRelationHandle(nodes, edges, namespace, tdata, 'src', showPod, serviceLine);
-        sourceNode && nodes.push(sourceNode);
-        targetNode && nodes.push(targetNode);
-        let edgeId = `edge_${source}_${target}${service ? '_' + service : ''}`
-        if (_.findIndex(edges, {id: edgeId}) === -1) {
-            let opposite: boolean = _.findIndex(edges, {source: target, target: source}) > -1 ? true : false;
-                edges.push({
-                    id: edgeId,
-                    source: source,
-                    target: target,
-                    service: service || '',
-                    opposite
-                });
+        (sourceNode && _.findIndex(nodes, {id: sourceNode.id}) === -1) && nodes.push(sourceNode);
+        (targetNode && _.findIndex(nodes, {id: targetNode.id}) === -1) && nodes.push(targetNode);
+        //  TODO 先去掉节点自调用的数据
+        if (source !== target) {
+            let edgeId = `edge_${source}_${target}${service ? '_' + service : ''}`
+            if (_.findIndex(edges, {id: edgeId}) === -1) {
+                let opposite: boolean = _.findIndex(edges, {source: target, target: source}) > -1 ? true : false;
+                    edges.push({
+                        id: edgeId,
+                        source: source,
+                        target: target,
+                        service: service || '',
+                        opposite
+                    });
+            }
         }
     });
     nodes = detailNodesHandle(nodes, nodeData);
