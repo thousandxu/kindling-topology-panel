@@ -94,7 +94,14 @@ export interface EdgeDataProps {
     edgePackageLostData?: any[];
 }
 
-
+export const transformWorkload = (workload: string) => {
+    if (workload.indexOf(',') > -1) {
+        let list = workload.match(/[^{},\s]+/g);
+        return list!.toString();
+    } else {
+        return workload;
+    }
+}
 /**
  * Grafana data format conversion to facilitate subsequent debugging
  * Grafana的数据格式转化提取，方便后续调试
@@ -145,13 +152,13 @@ const nsNodeInfoHandle = (node: NodeProps, nodeData: NodeDataProps) => {
         }
     });
 
-    let calls = callsList.length > 0 ? _.chain(callsList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-    let timeValue = timeList.length > 0 ? _.chain(timeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+    let calls = callsList.length > 0 ? _.chain(callsList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+    let timeValue = timeList.length > 0 ? _.chain(timeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
     let latency = calls ? timeValue / calls / 1000000 : 0;
-    let errorValue = errorList.length > 0 ? _.chain(errorList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+    let errorValue = errorList.length > 0 ? _.chain(errorList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
     let errorRate = calls ? errorValue / calls * 100 : 0;
-    let sentVolume = sendVolumeList.length > 0 ? _.chain(sendVolumeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-    let receiveVolume = receiveVolumeList.length > 0 ? _.chain(receiveVolumeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+    let sentVolume = sendVolumeList.length > 0 ? _.chain(sendVolumeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+    let receiveVolume = receiveVolumeList.length > 0 ? _.chain(receiveVolumeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
     
     return { calls, latency, errorRate, sentVolume, receiveVolume }
 }   
@@ -230,16 +237,16 @@ export const nsRelationHandle = (topoData: any, nodeData: NodeDataProps, edgeDat
         let rttList = _.filter(edgeData.edgeRTTData, item => edgeFilter(item, edge));
         let packageLostList = _.filter(edgeData.edgePackageLostData, item => edgeFilter(item, edge));
         
-        edge.calls = callsList.length > 0 ? _.chain(callsList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-        let timeValue = timeList.length > 0 ? _.chain(timeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+        edge.calls = callsList.length > 0 ? _.chain(callsList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+        let timeValue = timeList.length > 0 ? _.chain(timeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
         edge.latency = edge.calls ? timeValue / edge.calls / 1000000 : 0;
-        let errorValue = errorList.length > 0 ? _.chain(errorList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+        let errorValue = errorList.length > 0 ? _.chain(errorList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
         edge.errorRate = edge.calls ? errorValue / edge.calls * 100 : 0;
-        edge.sentVolume = sendVolumeList.length > 0 ? _.chain(sendVolumeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-        edge.receiveVolume = receiveVolumeList.length > 0 ? _.chain(receiveVolumeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-        edge.rtt = rttList.length > 0 ? _.chain(rttList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() / 1000 : 0;
-        edge.retransmit = retransmitList.length > 0 ? _.chain(retransmitList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-        edge.packageLost = packageLostList.length > 0 ? _.chain(packageLostList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+        edge.sentVolume = sendVolumeList.length > 0 ? _.chain(sendVolumeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+        edge.receiveVolume = receiveVolumeList.length > 0 ? _.chain(receiveVolumeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+        edge.rtt = rttList.length > 0 ? _.chain(rttList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() / 1000 : 0;
+        edge.retransmit = retransmitList.length > 0 ? _.chain(retransmitList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+        edge.packageLost = packageLostList.length > 0 ? _.chain(packageLostList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
     });
     return { nodes, edges };
 }
@@ -292,14 +299,14 @@ export const connFailNSRelationHandle = (topoData: any) => {
     edges.forEach((edge: EdgeProps) => {
         let connectData = _.filter(topoData, item => edgeFilter(item, edge));
         let connectFailData = _.filter(connectData, item => item.success === 'false');
-        edge.connFail = connectFailData.length > 0 ? _.chain(connectFailData).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() / _.chain(connectData).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() * 100 : 0;
+        edge.connFail = connectFailData.length > 0 ? _.chain(connectFailData).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() / _.chain(connectData).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() * 100 : 0;
     });
     return { nodes, edges };
 }
 export const connFailWorkloadRelationHandle = (workload: string, namespace: string, topoData: any, showPod: boolean, serviceLine: boolean) => {
     let nodes: any[] = [], edges: any[] = [];
     let result: any[] = [];
-    if (workload === 'all') {
+    if (workload.indexOf(',') > -1) {
         // 当workload为all的时候，筛选对应namespace下所有workload的调用关系
         result = _.filter(topoData, (item: any) => item.dst_namespace === namespace || item.src_namespace === namespace);
     } else {
@@ -362,7 +369,7 @@ export const topoMerge = (topo: TopologyProps, connTopo: TopologyProps) => {
 export const workloadRelationHandle = (workload: string, namespace: string, topoData: any, nodeData: NodeDataProps, edgeData: EdgeDataProps, showPod: boolean, serviceLine: boolean) => {
     let nodes: any[] = [], edges: any[] = [];
     let result: any[] = topoData;
-    if (workload === 'all') {
+    if (workload.indexOf(',') > -1) {
         // 当workload为all的时候，筛选对应namespace下所有workload的调用关系
         result = _.filter(topoData, (item: any) => item.dst_namespace === namespace || item.src_namespace === namespace);
     } else {
@@ -524,13 +531,13 @@ const detailNodeInfoHandle = (node: NodeProps, nodeData: NodeDataProps) => {
         }
     });
 
-    let calls = callsList.length > 0 ? _.chain(callsList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-    let timeValue = timeList.length > 0 ? _.chain(timeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+    let calls = callsList.length > 0 ? _.chain(callsList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+    let timeValue = timeList.length > 0 ? _.chain(timeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
     let latency = calls ? timeValue / calls / 1000000 : 0;
-    let errorValue = errorList.length > 0 ? _.chain(errorList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+    let errorValue = errorList.length > 0 ? _.chain(errorList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
     let errorRate = calls ? errorValue / calls * 100 : 0;
-    let sentVolume = sendVolumeList.length > 0 ? _.chain(sendVolumeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-    let receiveVolume = receiveVolumeList.length > 0 ? _.chain(receiveVolumeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+    let sentVolume = sendVolumeList.length > 0 ? _.chain(sendVolumeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+    let receiveVolume = receiveVolumeList.length > 0 ? _.chain(receiveVolumeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
     
     return { calls, latency, errorRate, sentVolume, receiveVolume }
 }
@@ -650,16 +657,16 @@ export const detailEdgesHandle = (nodes: any[], edges: any[], edgeData: any, sho
             }
         });
         
-        edge.calls = callsList.length > 0 ? _.chain(callsList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-        let timeValue = timeList.length > 0 ? _.chain(timeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+        edge.calls = callsList.length > 0 ? _.chain(callsList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+        let timeValue = timeList.length > 0 ? _.chain(timeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
         edge.latency = edge.calls ? timeValue / edge.calls / 1000000 : 0;
-        let errorValue = errorList.length > 0 ? _.chain(errorList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+        let errorValue = errorList.length > 0 ? _.chain(errorList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
         edge.errorRate = edge.calls ? errorValue / edge.calls * 100 : 0;
-        edge.sentVolume = sendVolumeList.length > 0 ? _.chain(sendVolumeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-        edge.receiveVolume = receiveVolumeList.length > 0 ? _.chain(receiveVolumeList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-        edge.rtt = rttList.length > 0 ? _.chain(rttList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() / 1000 : 0;
-        edge.retransmit = retransmitList.length > 0 ? _.chain(retransmitList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
-        edge.packageLost = packageLostList.length > 0 ? _.chain(packageLostList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+        edge.sentVolume = sendVolumeList.length > 0 ? _.chain(sendVolumeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+        edge.receiveVolume = receiveVolumeList.length > 0 ? _.chain(receiveVolumeList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+        edge.rtt = rttList.length > 0 ? _.chain(rttList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() / 1000 : 0;
+        edge.retransmit = retransmitList.length > 0 ? _.chain(retransmitList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
+        edge.packageLost = packageLostList.length > 0 ? _.chain(packageLostList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
         // console.log(edge);
     });
     return edgelist;
@@ -698,7 +705,7 @@ export const connFailDetailEdgesHandle = (nodes: any[], edges: any[], edgeData: 
             connectData = _.filter(connectData, item => item.dst_service === edge.service);
         }
         let connectFailData = _.filter(connectData, item => item.success === 'false');
-        edge.connFail = connectFailData.length > 0 ? _.chain(connectFailData).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() / _.chain(connectData).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() * 100 : 0;
+        edge.connFail = connectFailData.length > 0 ? _.chain(connectFailData).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() / _.chain(connectData).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() * 100 : 0;
     });
     return edgelist;
 }
@@ -727,7 +734,7 @@ export const updateEdge = (graphData: TopologyProps, metric: MetricType, metricD
         SGraph.getEdges().forEach((dEdge: any) => {
             let edgeModel = dEdge.getModel();
             let metricList = _.filter(metricData, item => edgeFilter(item, edgeModel));
-            let metricValue = metricList.length > 0 ? _.chain(metricList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+            let metricValue = metricList.length > 0 ? _.chain(metricList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
             if (metric === 'rtt') {
                 metricValue = metricValue / 1000;
             }
@@ -770,7 +777,7 @@ export const updateEdge = (graphData: TopologyProps, metric: MetricType, metricD
             }
 
         
-            let metricValue = metricList.length > 0 ? _.chain(metricList).map(item => parseFloat(_.compact(item.values).pop() + '')).sum().value() : 0;
+            let metricValue = metricList.length > 0 ? _.chain(metricList).map(item => _.isNumber(_.last(item.values)) ? _.last(item.values) : 0).sum().value() : 0;
             if (metric === 'rtt') {
                 metricValue = metricValue / 1000;
             }

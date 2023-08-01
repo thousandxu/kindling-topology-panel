@@ -1,75 +1,127 @@
-import { getDataSourceSrv, getBackendSrv, getTemplateSrv } from '@grafana/runtime';
-import { TimeRange, ScopedVars } from '@grafana/data';
-import { MetricType, DataSourceResponse } from './types';
-import { lastValueFrom } from 'rxjs';
+import { getDataSourceSrv, getBackendSrv, toDataQueryResponse } from '@grafana/runtime';
+import { TimeRange } from '@grafana/data';
+import { MetricType } from './types';
 import _ from 'lodash';
 
-const request = async(url: string, params?: string) => {
-    const response: any = getBackendSrv().fetch<DataSourceResponse>({
-      url: `${url}${params?.length ? `?${params}` : ''}`,
-    });
-    return lastValueFrom(response);
-}
-// 获取下拉列表中的namespace和workload label值
-export const getNamespaceAndWorkload = async (timeRange: TimeRange) => {
-    const kindlingDataSourceName = 'Prometheus';
-    const prometheusDataSource = getDataSourceSrv().getInstanceSettings(kindlingDataSourceName);
-    // @ts-ignore
-    let prometheusUrl = prometheusDataSource?.jsonData.directUrl;
-    let api = `${prometheusUrl}/api/v1/series`;
+// // 获取对应数据库的UID用于后续api代理转发跟参数构造
+// export const fetchDataSources = () => {
+//     return getBackendSrv().get('/api/datasources')
+// };
+// // 通过DataSource proxy 代理请求数据库获取数据，需要拼接完整的promql跟对应Prometheus的api
+// export const queryPrometheusData1 = async (prometheusId: string, timeRange: any) => {
+//     try {
+//         const promql2 = 'increase(kindling_topology_request_total{src_namespace="kindling"}[30m])';
 
-    const startTime = timeRange.from.toISOString();
-    const endTime = timeRange.to.toISOString();
-
-    return request(api, `match[]=${'kindling_topology_request_total'}&start=${startTime}&end=${endTime}`);
-}
-// Prometheus api接口返回的数据格式进行转化
-const transformResponseData = (data: any) => {
-    let result: any[] = [];
-    _.forEach(data, item => {
-        let tdata: any = {
-            ...item.metric,
-            values: [item.value[1]]
-        }
-        result.push(tdata);
-    });
-    return result;
-}
-// 获取timeRange 的时间range值
-const getTimeScope = (timeRange: TimeRange) => {
-    let timeScopeValue = '';
-    if (_.isString(timeRange.raw.from) && _.isString(timeRange.raw.to)) {
-        timeScopeValue = timeRange.raw.from.split('-')[1];
-    } else {
-        timeScopeValue = `${timeRange.to.diff(timeRange.from, 'm')}m`;
-    }
-    const timeScope: ScopedVars = {
-        '__range': {
-        text: '__range', 
-        value: timeScopeValue
-    }};
-
-    return timeScope;
-}
+//         const response2 = await getBackendSrv().datasourceRequest({
+//             url: `/api/datasources/proxy/uid/${prometheusId}/api/v1/query`, // 使用 prometheusId 构建数据查询请求 URL
+//             method: 'GET',
+//             params: { 
+//                 query: promql2,
+//                 to: timeRange.to.toISOString()
+//             },
+//         });
+//         console.log(response2);
+//     } catch (error) {
+//       // 处理错误
+//       console.error('Error:', error);
+//     }
+// };
+// // 通过grafana的api query data source，需要构造对应的请求参数
+// export const queryPrometheusData2 = async (prometheusId: string, timeRange: any) => {
+//     try {
+//         const promql = 'increase(kindling_topology_request_total{src_namespace="kindling"}[$__range])'; // 替换为你的 PromQL 查询语句
+    
+//         const response = await getBackendSrv().datasourceRequest({
+//             url: `/api/ds/query`, // 使用 prometheusId 构建数据查询请求 URL
+//             method: 'POST',
+//             data: { 
+//                 queries: [
+//                     {
+//                         refId: 'K',
+//                         expr: promql,
+//                         datasource: { uid: prometheusId },
+//                         format: 'time_series',
+//                         maxDataPoints: 1,
+//                         intervalMs: 1800000
+//                     }
+//                 ], 
+//                 range: timeRange,
+//                 from: timeRange.from.valueOf().toString(), 
+//                 to: timeRange.to.valueOf().toString() 
+//             },
+//         });
+  
+//         const data = response.data;
+//         // 处理获取的数据
+//         console.log('Data:', data);
+//     } catch (error) {
+//         // 处理错误
+//         console.error('Error:', error);
+//     }
+// };
 
 const excuteQuery = async(queryText: string, timeRange: TimeRange) => {
     const kindlingDataSourceName = 'Prometheus';
     // const prometheusDataSource = await getDataSourceSrv().get(kindlingDataSourceName);
-    // prometheusDataSource.query();
     const prometheusDataSource = getDataSourceSrv().getInstanceSettings(kindlingDataSourceName);
-    // @ts-ignore
-    let prometheusUrl = prometheusDataSource?.jsonData.directUrl;
-    let api = `${prometheusUrl}/api/v1/query`;
-
-    const nowTime = timeRange.to.toISOString();
-    const response: any = await request(api, `query=${queryText}&time=${nowTime}`);
-    if (response.data.status) {
-        const result = transformResponseData(response.data.data.result);
-        return Promise.resolve(result);
-    } else {
-        console.error(response.statusText);
+    let prometheusUid = prometheusDataSource?.uid;
+    
+    const from =  timeRange.from.valueOf().toString();
+    const to =  timeRange.to.valueOf().toString();
+    const intervalMs = parseInt(to) - parseInt(from);
+    try {
+        const response = await getBackendSrv().datasourceRequest({
+            url: `/api/ds/query`, // 使用 prometheusId 构建数据查询请求 URL
+            method: 'POST',
+            data: { 
+                queries: [
+                    {
+                        refId: 'metric',
+                        expr: queryText,
+                        datasource: { uid: prometheusUid },
+                        format: 'time_series',
+                        maxDataPoints: 1,
+                        intervalMs: intervalMs
+                    }
+                ], 
+                range: timeRange,
+                from: from, 
+                to: to 
+            },
+        });
+        const data = toDataQueryResponse(response);
+        // 处理获取的数据
+        console.log('Data:', data);
+        return Promise.resolve(data);
+    } catch (error) {
+        // 处理错误
+        console.error('Error:', error);
         return Promise.resolve([]);
     }
+    // const response: any = await request(api, `query=${queryText}&time=${nowTime}`);
+    // if (response.data.status) {
+    //     const result = transformResponseData(response.data.data.result);
+    //     return Promise.resolve(result);
+    // } else {
+    //     console.error(response.statusText);
+    //     return Promise.resolve([]);
+    // }
+}
+
+const getQueryText = (metric: string, namespace: string, workload: string) => {
+    console.log(metric, namespace, workload);
+    let queryPQL = '';
+    let functionName = 'increase';
+    if (metric === 'kindling_tcp_srtt_microseconds') {
+        functionName = 'avg_over_time';
+    }
+
+    if (workload.indexOf(',') > -1) {
+        queryPQL = `${functionName}(${metric}{src_namespace="${namespace}"}[$__range]) or ${functionName}(${metric}{dst_namespace="${namespace}"}[$__range])`;
+    } else {
+        queryPQL = `${functionName}(${metric}{src_namespace="${namespace}", src_workload_name="${workload}"}[$__range]) or ${functionName}(${metric}{dst_namespace="${namespace}", dst_workload_name="${workload}"}[$__range])`;
+    }
+    return queryPQL;
 }
 
 /**
@@ -81,104 +133,28 @@ export const metricQuery = async (metric: MetricType, namespace: string, workloa
     // console.log(metric, timeRange);
     let data: any;
     if (metric === 'sentVolume') {
-        // let promQL = 'increase(kindling_topology_request_request_bytes_total[$__range])';
-        let promQL = getQueryText('kindling_topology_request_request_bytes_total', namespace, workload, timeRange);
+        let promQL = getQueryText('kindling_topology_request_request_bytes_total', namespace, workload);
         data = await excuteQuery(promQL, timeRange);
     }
     if (metric === 'receiveVolume') {
-        // let promQL = 'increase(kindling_topology_request_response_bytes_total[$__range])';
-        let promQL = getQueryText('kindling_topology_request_response_bytes_total', namespace, workload, timeRange);
+        let promQL = getQueryText('kindling_topology_request_response_bytes_total', namespace, workload);
         data = await excuteQuery(promQL, timeRange);
     }
     if (metric === 'retransmit') {
-        // let promQL = 'increase(kindling_tcp_retransmit_total[$__range])';
-        let promQL = getQueryText('kindling_tcp_retransmit_total', namespace, workload, timeRange);
+        let promQL = getQueryText('kindling_tcp_retransmit_total', namespace, workload);
         data = await excuteQuery(promQL, timeRange);
     }
     if (metric === 'rtt') {
-        // let promQL = 'avg_over_time(kindling_tcp_srtt_microseconds[$__range])';
-        let promQL = getQueryText('kindling_tcp_srtt_microseconds', namespace, workload, timeRange);
+        let promQL = getQueryText('kindling_tcp_srtt_microseconds', namespace, workload);
         data = await excuteQuery(promQL, timeRange);
     }
     if (metric === 'packageLost') {
-        // let promQL = 'increase(kindling_tcp_packet_loss_total[$__range])';
-        let promQL = getQueryText('kindling_tcp_packet_loss_total', namespace, workload, timeRange);
+        let promQL = getQueryText('kindling_tcp_packet_loss_total', namespace, workload);
         data = await excuteQuery(promQL, timeRange);
     }
     if (metric === 'connFail') {
-        // let promQL = 'increase(kindling_tcp_connect_total[$__range])';
-        let promQL = getQueryText('kindling_tcp_connect_total', namespace, workload, timeRange);
+        let promQL = getQueryText('kindling_tcp_connect_total', namespace, workload);
         data = await excuteQuery(promQL, timeRange);
     }
     return data;
-}
-
-
-const getNodeMetricPQL = (metric: string, namespace: string, workload: string, timeRange: TimeRange) => {
-    const timeScope: ScopedVars = getTimeScope(timeRange);
-    let queryPQL = '';
-    if (namespace === 'all') {
-        queryPQL = `sum (increase(${metric}[$__range])) by (namespace, workload_name, pod)`;
-    } else {
-        queryPQL = `sum (increase(${metric}{namespace="${namespace}"}[$__range])) by (namespace, workload_name, pod)`;
-        // if (workload === 'all') {
-        //     queryPQL = `sum (increase(${metric}{namespace="${namespace}"}[$__range])) by (namespace, workload_name, pod)`;
-        // } else {
-        //     queryPQL = `sum (increase(${metric}{namespace="${namespace}", workload_name="${workload}"}[$__range])) by (namespace, workload_name, pod)`;
-        // }
-    }
-    let promql = getTemplateSrv().replace(queryPQL, timeScope);
-    return promql;
-}
-/**
- * 获取节点上的相关指标数据
- * @param timeRange 
- * @returns 
- */
-export const getNodeInfo = (namespace: string, workload: string, timeRange: TimeRange) => {
-    // const callsPQL = 'sum (increase(kindling_entity_request_total[$__range])) by (namespace, workload_name, pod)';
-    // const timePQL = 'sum (increase(kindling_entity_request_duration_nanoseconds_total[$__range])) by (namespace, workload_name, pod)';
-    // const sendVolumePQL = 'sum(increase(kindling_entity_request_send_bytes_total[$__range])) by(namespace, workload_name, pod)';
-    // const receiveVolumePQL = 'sum(increase(kindling_entity_request_receive_bytes_total[$__range])) by(namespace, workload_name, pod)';
-    const callsPQL = getNodeMetricPQL('kindling_entity_request_total', namespace, workload, timeRange);
-    const timePQL = getNodeMetricPQL('kindling_entity_request_duration_nanoseconds_total', namespace, workload, timeRange);
-    const sendVolumePQL = getNodeMetricPQL('kindling_entity_request_send_bytes_total', namespace, workload, timeRange);
-    const receiveVolumePQL = getNodeMetricPQL('kindling_entity_request_receive_bytes_total', namespace, workload, timeRange);
-    return Promise.all([
-        excuteQuery(callsPQL, timeRange),
-        excuteQuery(timePQL, timeRange),
-        excuteQuery(sendVolumePQL, timeRange),
-        excuteQuery(receiveVolumePQL, timeRange)
-    ]); 
-}
-
-const getQueryText = (metric: string, namespace: string, workload: string, timeRange: TimeRange) => {
-    const timeScope: ScopedVars = getTimeScope(timeRange);
-    let queryPQL = '';
-    let functionName = 'increase';
-    if (metric === 'kindling_tcp_srtt_microseconds') {
-        functionName = 'avg_over_time';
-    }
-    if (namespace === 'all') {
-        queryPQL = `${functionName}(${metric}[$__range])`;
-    } else {
-        queryPQL = `${functionName}(${metric}{src_namespace="${namespace}"}[$__range]) or ${functionName}(${metric}{dst_namespace="${namespace}"}[$__range])`;
-        // if (workload === 'all') {
-        //     queryPQL = `${functionName}(${metric}{src_namespace="${namespace}"}[$__range]) or ${functionName}(${metric}{dst_namespace="${namespace}"}[$__range])`;
-        // } else {
-        //     queryPQL = `${functionName}(${metric}{src_namespace="${namespace}", src_workload_name="${workload}"}[$__range]) or ${functionName}(${metric}{dst_namespace="${namespace}", src_workload_name="${workload}"}[$__range])`;
-        // }
-    }
-    let promql = getTemplateSrv().replace(queryPQL, timeScope);
-    return promql;
-}
-// 初始化请求拓扑数据
-export const getTopoData = (namespace: string, workload: string, timeRange: TimeRange) => {
-    let promQL1 = getQueryText('kindling_topology_request_total', namespace, workload, timeRange);
-    let promQL2 = getQueryText('kindling_topology_request_duration_nanoseconds_total', namespace, workload, timeRange);
-    console.log(promQL1, promQL2);
-    return Promise.all([
-        excuteQuery(promQL1, timeRange),
-        excuteQuery(promQL2, timeRange)
-    ]); 
 }

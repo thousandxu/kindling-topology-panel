@@ -6,15 +6,14 @@ import './topology/edge';
 import { nodeTooltip } from './topology/tooltip';
 import TopoLegend from './topology/legend';
 import { metricList, metricDataName, layoutOptions, directionOptions, viewRadioOptions, showServiceOptions, NodeDataProps, EdgeDataProps, 
-  getNodeTypes, nsRelationHandle, connFailNSRelationHandle, workloadRelationHandle, connFailWorkloadRelationHandle, TopologyProps, topoMerge,
-  updateNode, updateEdge } from './topology/services'; 
+  transformData, transformWorkload, getNodeTypes, nsRelationHandle, connFailNSRelationHandle, workloadRelationHandle, connFailWorkloadRelationHandle, TopologyProps, topoMerge,
+  updateEdge } from './topology/services'; 
 import { buildLayout, serviceLineUpdate, updateLinesAndNodes } from './topology/topology'
-import FilterList, { SelectOption } from './topology/filter';
-import { PanelProps, SelectableValue, TimeRange } from '@grafana/data';
+import { PanelProps, SelectableValue } from '@grafana/data';
 import { MetricType, SimpleOptions } from 'types';
 import { css, cx } from 'emotion';
-import { stylesFactory, Select, RadioButtonGroup, Icon, Tooltip, Spinner, InlineField } from '@grafana/ui';
-import { getNamespaceAndWorkload, getTopoData, getNodeInfo, metricQuery } from './dataSource'; 
+import { stylesFactory, Select, RadioButtonGroup, Icon, Tooltip, Spinner } from '@grafana/ui';
+import { metricQuery } from './dataSource'; 
 
 interface VolumeProps {
   maxSentVolume: number; 
@@ -24,24 +23,26 @@ interface VolumeProps {
 }
 
 let SGraph: any;
-let filterOpts: any;
-let topoData: any, connFailTopoData: any, nodeData: NodeDataProps, edgeData: EdgeDataProps;
+let connFailTopoData: any;
 let connFailTopo: TopologyProps;
 const initActiveMetricList: MetricType[] = ['latency', 'calls', 'errorRate'];
 
 interface Props extends PanelProps<SimpleOptions> {}
 
-export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRange }) => {
+export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, timeRange, replaceVariables }) => {
   let graphRef: any = useRef();
   const styles = getStyles();
-  const [namespace, setNamespace] = useState<string>(''); 
-  const [namespaceList, setNamespaceList] = useState<SelectOption[]>([]); 
-  const [workload, setWorkload] = useState<string>('all'); 
-  const [workloadList, setWorkloadList] = useState<SelectOption[]>([]); 
+  const namespace = replaceVariables('$namespace');
+  const workload = replaceVariables('$workload');
+
+  const topoData = useRef<any>();
+  const nodeData = useRef<NodeDataProps>();
+  const edgeData = useRef<EdgeDataProps>();
+
   const [graphData, setGraphData] = useState<any>({}); 
-  const [layout, setLayout] = useState<string>('dagre'); 
+  const [layout, setLayout] = useState<'dagre' | 'force'>('dagre'); 
   const [loading, setLoading] = useState<boolean>(false); 
-  const [showCheckbox, setShowCheckbox] = useState<boolean>(namespace === 'all'); // 是否显示show services的切换选项
+  const [showCheckbox, setShowCheckbox] = useState<boolean>(true); // 是否显示show services的切换选项
   const [showService, setShowService] = useState<boolean>(false); // show services
   const [showView, setShowView] = useState<boolean>(false); // 单个workload拓扑视图下  workload与pod切换的选项
   const [firstChangeDir, setFirstChangeDir] = useState<boolean>(false);
@@ -52,7 +53,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRan
   const [nodeTypesList, setNodeTypesList] = useState<any[]>([]);
   const [activeMetricList, setActiveMetricList] = useState<MetricType[]>(initActiveMetricList);
 
-  // console.log(options, namespace, workload, width, height, timeRange);
+  // console.log(options, data, namespace, workload, width, height, timeRange);
   // draw topology
   const draw = (gdata: any, metric = lineMetric, serviceLine = showService) => {
     const inner: any = document.getElementById('kindling_topo');
@@ -132,22 +133,23 @@ export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRan
     }
     setVolumes(volumeData);
   }
-  const buildtopoData = (namespaceV: string, workloadV: string, metric: MetricType) => {
+  const buildtopoData = () => {
     let nodes: any[] = [], edges: any[] = [];
     let connFailResult: TopologyProps = {
       nodes: [],
       edges: []
     };
-    if (namespaceV === 'all') {
-      let result: any = nsRelationHandle(topoData, nodeData, edgeData);
+    // namespace select all
+    if (namespace.indexOf(',') > -1) {
+      let result: any = nsRelationHandle(topoData.current, nodeData.current!, edgeData.current!);
       connFailResult = connFailNSRelationHandle(connFailTopoData);
       nodes = [].concat(result.nodes);
       edges = [].concat(result.edges);
     } else {
-      let showPod = workloadV !== 'all';
+      let showPod = workload.indexOf(',') === -1;
       setView(showPod ? 'pod_view' : 'workload_view');
-      let result: any = workloadRelationHandle(workloadV, namespaceV, topoData, nodeData, edgeData, showPod, showService);
-      connFailResult = connFailWorkloadRelationHandle(workloadV, namespaceV, connFailTopoData, showPod, showService);
+      let result: any = workloadRelationHandle(transformWorkload(workload), namespace, topoData.current, nodeData.current!, edgeData.current!, showPod, showService);
+      connFailResult = connFailWorkloadRelationHandle(transformWorkload(workload), namespace, connFailTopoData, showPod, showService);
       nodes = [].concat(result.nodes);
       edges = [].concat(result.edges);
     }
@@ -157,69 +159,45 @@ export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRan
       edges: edges
     }
     connFailTopo = _.cloneDeep(connFailResult);
+    console.log(gdata);
     setGraphData(gdata);
     if (lineMetric === 'connFail') {
       const data = topoMerge(gdata, connFailTopo);
       draw(data);
     } else {
-      draw(gdata, metric);
+      draw(gdata, lineMetric);
     }
     let nodeTypesList = getNodeTypes(gdata.nodes);
     setNodeTypesList(nodeTypesList);
   }
-  // 获取节点上的时延、请求次数、错误率、接受/发出流量的数据
-  const getNodeInfoData = (namespaceV: string, workloadV: string, metric: MetricType) => {
-    getNodeInfo(namespaceV, workloadV, timeRange).then(allRes => {
-      nodeData = {
-        nodeCallsData: allRes[0],
-        nodeTimeData: allRes[1],
-        nodeSendVolumeData: allRes[2],
-        nodeReceiveVolumeData: allRes[3]
-      };
-      updateNode(graphData, nodeData, SGraph, namespace === 'all');
-      updateLinesAndNodes(SGraph, options, volumes, metric, showService);
-    });
-  }
-  // Initial data processing: query topology data
-  const queryTopoData = (namespaceV: string, workloadV: string, timeRange: TimeRange, metric = lineMetric) => {
-    setLoading(true);
-    console.log(namespaceV, workloadV);
-    getTopoData(namespaceV, workloadV, timeRange).then(res => {
-      setLoading(false);
-      topoData = res[0];
-      let edgeTimeData: any = res[1];
-      edgeData = {
-        edgeCallData: topoData,
-        edgeTimeData,
-        edgeSendVolumeData: [],
-        edgeReceiveVolumeData: [],
-        edgeRetransmitData: [],
-        edgeRTTData: [],
-        edgePackageLostData: []
-      };
-      
-      nodeData = {
-        nodeCallsData: [],
-        nodeTimeData: [],
-        nodeSendVolumeData: [],
-        nodeReceiveVolumeData: []
-      };
-  
-      buildtopoData(namespaceV, workloadV, metric);
-      getNodeInfoData(namespaceV, workloadV, metric);
-    });
-  }
-  // 初始化获取Namespace和workload下拉列表的数据，默认请求第一个namespace的拓扑相关数据
-  const init = () => {
-    getNamespaceAndWorkload(timeRange).then((res: any) => {
-      let seriesData = res.data.data;
-      filterOpts = new FilterList(seriesData, namespace);
 
-      setNamespaceList(filterOpts.namespaceList);
-      let namespaceValue = filterOpts.namespaceList[0].value;
-      setNamespace(namespaceValue);
-      namespaceChange({value: namespaceValue});
-    });
+  const initData = () => {
+    topoData.current = transformData(_.filter(data.series, (item: any) => item.refId === 'A'));
+    let edgeTimeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'B'));
+    edgeData.current = {
+      edgeCallData: topoData.current,
+      edgeTimeData,
+      edgeSendVolumeData: [],
+      edgeReceiveVolumeData: [],
+      edgeRetransmitData: [],
+      edgeRTTData: [],
+      edgePackageLostData: []
+    };
+    
+    let nodeCallsData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'C'));
+    let nodeTimeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'D'));
+    let nodeSendVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'E'));
+    let nodeReceiveVolumeData: any = transformData(_.filter(data.series, (item: any) => item.refId === 'F'));
+    nodeData.current = {
+      nodeCallsData,
+      nodeTimeData,
+      nodeSendVolumeData,
+      nodeReceiveVolumeData
+    };
+    console.log('edgeData', edgeData.current);
+    console.log('nodeData', nodeData.current);
+
+    buildtopoData();
   }
 
   useEffect(() => {
@@ -230,13 +208,11 @@ export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRan
   }, [volumes, lineMetric]);
 
   useEffect(() => {
-    if (namespace !== 'all') {
+    setLineMetric('latency');
+    setActiveMetricList(initActiveMetricList);
+    if (namespace.indexOf(',') > -1) {
       setShowCheckbox(true);
-      if (workload !== 'all') {
-        setShowView(true);
-      } else {
-        setShowView(false);
-      }
+      setShowView(workload.indexOf(',') === -1)
     } else {
       setShowCheckbox(false);
       setShowView(false);
@@ -244,52 +220,37 @@ export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRan
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [namespace, workload]);
   
-  // 插件根据时间重新请求数据初始化 
   useEffect(() => {
-    init();
-	  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange]);
+    if (data.state === 'Done') {
+      setLoading(false);
+      initData();
+    }
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   // 改变拓扑布局方式，重新绘制拓扑图
   useEffect(() => {
-    if (SGraph) {
+    if (SGraph && !_.isEmpty(graphData)) {
       if (lineMetric === 'connFail') {
         const data = topoMerge(graphData, connFailTopo);
         draw(data);
       } else {
+        console.log(graphData);
         draw(graphData);
       }  
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout]);
 
-  const namespaceChange = (opt: any) => {
-    setNamespace(opt.value);
-    filterOpts.changeNamespace(opt.value);
-    setWorkloadList(filterOpts.workloadList);
-    setWorkload('all');
-    setActiveMetricList(initActiveMetricList);
-    new Promise((resolve) => {
-      setLineMetric(() => {
-        resolve('latency');
-        return 'latency';
-      });
-    }).then(res => {
-      // console.log('我是setLineMetric的回调', res);
-      queryTopoData(opt.value, 'all', timeRange, res);
-    });
-  }
-  const workloadChange = (opt: any) => {
-    setWorkload(opt.value);
-    buildtopoData(namespace, opt.value, lineMetric);
-  }
   // When the segment indicator is switched, the corresponding segment style is updated
   const lineMetricChange = async (opt: SelectableValue<MetricType>) => {
     let metric: MetricType = opt.value!;
     if (activeMetricList.indexOf(metric) === -1) {
       setLoading(true);
       setActiveMetricList([...activeMetricList, metric]);
-      let metricData = await metricQuery(metric, namespace, workload, timeRange);
+      let metricResult = await metricQuery(metric, namespace, workload, timeRange);
+      const metricData = transformData(metricResult.data);
+      console.log('metricData', metricData);
       setLoading(false);
       if (metric === 'connFail') {
         connFailTopoData = metricData;
@@ -297,10 +258,11 @@ export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRan
         draw(data, metric);
       } else {
         // @ts-ignore
-        edgeData[metricDataName[metric]] = metricData;
-        updateEdge(graphData, metric, metricData, SGraph, namespace === 'all', showService);
+        edgeData.current[metricDataName[metric]] = metricData;
+        updateEdge(graphData, metric, metricData, SGraph, namespace.indexOf(',') > -1, showService);
         // updateLinesAndNodes(SGraph, options, volumes, metric, showService);
         if (metric === 'sentVolume' || metric === 'receiveVolume') {
+          console.log('graphData', graphData);
           calculateVolume(graphData);
         }
       }
@@ -337,7 +299,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRan
   const changeShowService = () => {
     let show = !showService ? true : false;
     setShowService(show);
-    let { nodes, edges } = workloadRelationHandle(workload, namespace, topoData, nodeData, edgeData, view === 'pod_view', show);
+    let { nodes, edges } = workloadRelationHandle(workload, namespace, topoData.current, nodeData.current!, edgeData.current!, view === 'pod_view', show);
     let gdata = {
       nodes: nodes,
       edges: edges
@@ -349,7 +311,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRan
   // toggle View Mode。Switch between the workload view and pod view
   const changeView = (value: any) => {
     setView(value);
-    let { nodes, edges } = workloadRelationHandle(workload, namespace, topoData, nodeData, edgeData, value === 'pod_view', showService);
+    let { nodes, edges } = workloadRelationHandle(workload, namespace, topoData.current, nodeData.current!, edgeData.current!, value === 'pod_view', showService);
     let gdata = {
       nodes: nodes,
       edges: edges
@@ -370,18 +332,6 @@ export const TopologyPanel: React.FC<Props> = ({ options, width, height, timeRan
       )}
     >
       <div className={styles.topLineMetric}>
-        <div className={styles.filterWarp}>
-          <div>
-            <InlineField label="Namespace">
-             <Select value={namespace} options={namespaceList} onChange={namespaceChange}/>
-            </InlineField>
-          </div>
-          <div>
-            <InlineField label="Workload">
-             <Select value={workload} options={workloadList} onChange={workloadChange}/>
-            </InlineField>
-          </div>
-        </div>
         <div className={styles.metricSelect}>
           <span style={{ width: '170px' }}>Call Line Metric</span>
           <Select value={lineMetric} options={metricList} onChange={lineMetricChange}/>
