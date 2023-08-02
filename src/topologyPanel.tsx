@@ -23,7 +23,7 @@ interface VolumeProps {
 }
 
 let SGraph: any;
-let connFailTopoData: any;
+// let connFailTopoData: any;
 let connFailTopo: TopologyProps;
 const initActiveMetricList: MetricType[] = ['latency', 'calls', 'errorRate'];
 
@@ -135,21 +135,15 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
   }
   const buildtopoData = () => {
     let nodes: any[] = [], edges: any[] = [];
-    let connFailResult: TopologyProps = {
-      nodes: [],
-      edges: []
-    };
     // namespace select all
     if (namespace.indexOf(',') > -1) {
       let result: any = nsRelationHandle(topoData.current, nodeData.current!, edgeData.current!);
-      connFailResult = connFailNSRelationHandle(connFailTopoData);
       nodes = [].concat(result.nodes);
       edges = [].concat(result.edges);
     } else {
       let showPod = workload.indexOf(',') === -1;
       setView(showPod ? 'pod_view' : 'workload_view');
       let result: any = workloadRelationHandle(transformWorkload(workload), namespace, topoData.current, nodeData.current!, edgeData.current!, showPod, showService);
-      connFailResult = connFailWorkloadRelationHandle(transformWorkload(workload), namespace, connFailTopoData, showPod, showService);
       nodes = [].concat(result.nodes);
       edges = [].concat(result.edges);
     }
@@ -158,15 +152,9 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
       nodes: nodes,
       edges: edges
     }
-    connFailTopo = _.cloneDeep(connFailResult);
     console.log(gdata);
     setGraphData(gdata);
-    if (lineMetric === 'connFail') {
-      const data = topoMerge(gdata, connFailTopo);
-      draw(data);
-    } else {
-      draw(gdata, lineMetric);
-    }
+    draw(gdata, lineMetric);
     let nodeTypesList = getNodeTypes(gdata.nodes);
     setNodeTypesList(nodeTypesList);
   }
@@ -253,7 +241,13 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
       console.log('metricData', metricData);
       setLoading(false);
       if (metric === 'connFail') {
-        connFailTopoData = metricData;
+        // connFailTopoData = metricData;
+        if (namespace.indexOf(',') > -1) {
+          connFailTopo = connFailNSRelationHandle(metricData);
+        } else {
+          connFailTopo = connFailWorkloadRelationHandle(transformWorkload(workload), namespace, metricData, showView, showService);
+        }
+        console.log('connFailTopo', connFailTopo);
         const data = topoMerge(graphData, connFailTopo);
         draw(data, metric);
       } else {
@@ -271,6 +265,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
         const data = topoMerge(graphData, connFailTopo);
         draw(data, metric);
       } else {
+        // 若当前选中指标时connFail时，需要重新单独绘制没有connFailTopo的拓扑图
         if (lineMetric === 'connFail') {
           draw(graphData, metric);
         }
@@ -278,12 +273,14 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
     } 
     setLineMetric(metric);
   }
+  // change layout
   const changeLayout = (opt: any) => {
     if (opt.value === layout) {
       return;
     }
     setLayout(opt.value);
   } 
+  // change direction whrn layout is dagre
   const changeDirection = (value: any) => {
     setDirection(value);
     SGraph.updateLayout({
