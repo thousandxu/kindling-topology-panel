@@ -23,7 +23,7 @@
     "node": ">=14"
   },
   "dependencies": {
-    "@antv/g6": "4.0.3",
+    "@antv/g6": "4.8.19",
     "@grafana/runtime": "^9.3.6",
     "@types/lodash": "^4.14.177",
     "lodash": "^4.17.21",
