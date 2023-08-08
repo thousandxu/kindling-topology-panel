@@ -182,8 +182,8 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
       nodeSendVolumeData,
       nodeReceiveVolumeData
     };
-    console.log('edgeData', edgeData.current);
-    console.log('nodeData', nodeData.current);
+    // console.log('edgeData', edgeData.current);
+    // console.log('nodeData', nodeData.current);
 
     buildtopoData();
   }
@@ -330,7 +330,7 @@ export const TopologyPanel: React.FC<Props> = ({ options, data, width, height, t
     >
       <div className={styles.topLineMetric}>
         <div className={styles.metricSelect}>
-          <span style={{ width: '170px' }}>Call Line Metric</span>
+          <span style={{ width: '180px' }}>Call Line Metric</span>
           <Select value={lineMetric} options={metricList} onChange={lineMetricChange}/>
         </div>
       </div>

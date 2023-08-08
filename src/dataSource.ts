@@ -67,8 +67,8 @@ const excuteQuery = async(queryText: string, timeRange: TimeRange) => {
     let prometheusUid = prometheusDataSource?.uid;
     
     const from =  timeRange.from.valueOf().toString();
-    const to =  timeRange.to.valueOf().toString();
-    const intervalMs = parseInt(to) - parseInt(from);
+    const to = timeRange.to.valueOf().toString();
+    const intervalMs = parseInt(to, 10) - parseInt(from, 10);
     try {
         const response = await getBackendSrv().datasourceRequest({
             url: `/api/ds/query`, // 使用 prometheusId 构建数据查询请求 URL

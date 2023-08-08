@@ -104,6 +104,7 @@ export const transformWorkload = (workload: string) => {
 }
 /**
  * Grafana data format conversion to facilitate subsequent debugging
+ * 高版本grafana返回数据时不在有buffer这个字段，直接取values
  * Grafana的数据格式转化提取，方便后续调试
  */
 export const transformData = (data: any[]) => {
@@ -111,7 +112,7 @@ export const transformData = (data: any[]) => {
     _.forEach(data, item => {
         let tdata: any = {
             ...item.fields[1].labels,
-            values: item.fields[1].values.buffer
+            values: item.fields[1].values.buffer ? item.fields[1].values.buffer : item.fields[1].values
         }
         result.push(tdata);
     });
