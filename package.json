@@ -16,7 +16,7 @@
     "@grafana/data": "^9.0.0",
     "@grafana/toolkit": "^9.0.0",
     "@grafana/ui": "^9.0.0",
-    "@grafana/runtime": "^9.0.0",
+    "@grafana/runtime": "^11.6.0",
     "@types/react-dom": "^18.0.6",
     "emotion": "10.0.27"
   },
@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@antv/g6": "4.0.3",
-    "@grafana/runtime": "^9.3.6",
+    "@grafana/runtime": "^11.6.0",
     "@types/lodash": "^4.14.177",
     "lodash": "^4.17.21",
     "react": "^18.2.0",
